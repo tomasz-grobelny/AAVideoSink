@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 2.8)
+project (AAVideoSink)
+pkg_check_modules (gst REQUIRED IMPORTED_TARGET gstreamer-base-1.0)
+find_package(FFmpeg REQUIRED)
+message(${gst_INCLUDE_DIRS})
+include_directories(${gst_INCLUDE_DIRS})
+add_library(AAVideoSink SHARED gstaavideosink.cpp)
+target_link_libraries(AAVideoSink PkgConfig::gst)
