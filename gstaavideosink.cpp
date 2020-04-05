@@ -119,8 +119,9 @@ GstFlowReturn gst_aavideo_render_buffer(GstBaseSink *basesink, GstBuffer *buf) {
                          ? AvMessageType::MediaIndication
                          : AvMessageType::MediaWithTimestampIndication;
   std::vector<uint8_t> plainMsg;
-  plainMsg.push_back(0x01); // packet type
-  plainMsg.push_back(0x00); // channel type
+  plainMsg.push_back(0x01);                       // packet type
+  plainMsg.push_back(aavideosink->channelNumber); // channel number
+  plainMsg.push_back(0x00);                       // specific
   plainMsg.push_back(messageType >> 8);
   plainMsg.push_back(messageType & 0xFF);
   auto timeStamp = buf->pts / 1000;
@@ -153,10 +154,24 @@ int getSocketFd(std::string socketName) {
   return fd;
 }
 
+void openChannel(GstAAVideoSink *aavideosink) {
+  uint8_t buffer[2];
+  buffer[0] = 0; // packet type == OpenChannel
+  buffer[1] = 0; // channel type == Video
+  if (write(aavideosink->aaServerFd, buffer, sizeof buffer) != sizeof buffer)
+    throw runtime_error("failed to write open channel");
+  uint8_t channelNumber;
+  if (read(aavideosink->aaServerFd, &channelNumber, sizeof(channelNumber)) !=
+      sizeof(channelNumber))
+    throw runtime_error("failed to read open channel");
+  aavideosink->channelNumber = channelNumber;
+}
+
 gboolean gst_aavideo_start(GstBaseSink *sink) {
   auto aavideosink = GST_AAVIDEOSINK(sink);
   aavideosink->aaServerFd = getSocketFd(aavideosink->socketName);
   aavideosink->firstFrame = true;
+  openChannel(aavideosink);
   return TRUE;
 }
 

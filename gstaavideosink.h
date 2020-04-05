@@ -19,6 +19,7 @@ struct GstAAVideoSink {
   GstBaseSink basesink;
   gchar *socketName;
   int aaServerFd;
+  uint8_t channelNumber;
   gboolean firstFrame;
 };
 
