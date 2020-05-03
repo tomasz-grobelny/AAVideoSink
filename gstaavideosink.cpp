@@ -122,9 +122,12 @@ GstFlowReturn gst_aavideo_render_buffer(GstBaseSink *basesink, GstBuffer *buf) {
   plainMsg.push_back(0x01);                       // packet type
   plainMsg.push_back(aavideosink->channelNumber); // channel number
   plainMsg.push_back(0x00);                       // specific
-  plainMsg.push_back(0x00); // raw data in video channel handler
-  plainMsg.push_back(messageType >> 8);
-  plainMsg.push_back(messageType & 0xFF);
+  plainMsg.push_back(
+      aavideosink->firstFrame
+          ? 0x02
+          : 0x03); // media (with timestamp) indication in video channel handler
+  if (aavideosink->firstFrame)
+    plainMsg.push_back(0xff);
   auto timeStamp = buf->pts / 1000;
   for (int s = 56; s >= 0 && !aavideosink->firstFrame; s -= 8) {
     plainMsg.push_back((timeStamp >> s) & 0xFF);
@@ -168,19 +171,6 @@ void openChannel(GstAAVideoSink *aavideosink) {
     throw runtime_error("failed to read video channel number");
   aavideosink->channelNumber = channelNumber;
   GST_DEBUG(("channelNumber: " + to_string(channelNumber)).c_str());
-
-  uint8_t bufOpenChannel[4];
-  bufOpenChannel[0] = 1;             // packet type == RawData
-  bufOpenChannel[1] = channelNumber; // channel number
-  bufOpenChannel[2] = 0;             // specific?
-  bufOpenChannel[3] = 1;             // open channel
-  if (write(aavideosink->aaServerFd, bufOpenChannel, sizeof bufOpenChannel) !=
-      sizeof bufOpenChannel)
-    throw runtime_error("failed to write open channel");
-  uint8_t ok;
-  if (read(aavideosink->aaServerFd, &ok, sizeof(ok)) != sizeof(ok))
-    throw runtime_error("failed to read open channel confirmation");
-  GST_DEBUG("channel opened");
 }
 
 gboolean gst_aavideo_start(GstBaseSink *sink) {
