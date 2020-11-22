@@ -20,8 +20,9 @@ GST_DEBUG_CATEGORY_STATIC(gst_aavideo_sink_debug);
 
 enum { PROP_0, PROP_SOCKETNAME };
 
-static GstStaticPadTemplate sinkTemplate = GST_STATIC_PAD_TEMPLATE(
-    "sink", GST_PAD_SINK, GST_PAD_ALWAYS, GST_STATIC_CAPS("video/x-h264"));
+static GstStaticPadTemplate sinkTemplate =
+    GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+                            GST_STATIC_CAPS("video/x-h264;video/x-raw"));
 
 #define gst_aavideo_parent_class parent_class
 G_DEFINE_TYPE(GstAAVideoSink, gst_aavideo, GST_TYPE_BASE_SINK);
@@ -100,6 +101,9 @@ gboolean gst_aavideo_event(GstBaseSink *basesink, GstEvent *event) {
   case GST_EVENT_CAPS: {
     GstCaps *caps;
     gst_event_parse_caps(event, &caps);
+    GstStructure *structure = gst_caps_get_structure(caps, 0);
+    auto name = gst_structure_get_name(structure);
+    aavideosink->isRaw = (name == "video/x-raw"s);
     break;
   }
   default:
@@ -124,7 +128,7 @@ GstFlowReturn gst_aavideo_render_buffer(GstBaseSink *basesink, GstBuffer *buf) {
   plainMsg.push_back(0x00);                       // specific
   plainMsg.push_back(
       aavideosink->firstFrame
-          ? 0x02
+          ? (aavideosink->isRaw ? 0x04 : 0x02)
           : 0x03); // media (with timestamp) indication in video channel handler
   if (aavideosink->firstFrame)
     plainMsg.push_back(0xff);
@@ -139,7 +143,7 @@ GstFlowReturn gst_aavideo_render_buffer(GstBaseSink *basesink, GstBuffer *buf) {
   auto ret = bytesWritten == plainMsg.size() ? GST_FLOW_OK : GST_FLOW_EOS;
   gst_buffer_unmap(buf, &info);
   aavideosink->firstFrame = false;
-
+  GST_DEBUG("render done: %d %d", (int)plainMsg.size(), (int)bytesWritten);
   return ret;
 }
 
@@ -170,7 +174,7 @@ void openChannel(GstAAVideoSink *aavideosink) {
       sizeof(channelNumber))
     throw runtime_error("failed to read video channel number");
   aavideosink->channelNumber = channelNumber;
-  GST_DEBUG(("channelNumber: " + to_string(channelNumber)).c_str());
+  GST_DEBUG("channelNumber: %d", channelNumber);
 }
 
 gboolean gst_aavideo_start(GstBaseSink *sink) {

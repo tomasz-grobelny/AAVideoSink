@@ -21,6 +21,7 @@ struct GstAAVideoSink {
   int aaServerFd;
   uint8_t channelNumber;
   gboolean firstFrame;
+  gboolean isRaw;
 };
 
 struct GstAAVideoSinkClass {
